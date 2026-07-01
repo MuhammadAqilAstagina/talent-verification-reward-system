@@ -1,0 +1,447 @@
+openapi: 3.0.3
+info:
+  title: Talent Verification & Reward System API
+  description: Dokumentasi API untuk MVP "Talent Verification & Reward System"
+  version: 1.0.0
+servers:
+  - url: http://localhost:4000/api
+    description: Development server
+paths:
+  /auth/register:
+    post:
+      summary: Pendaftaran akun mahasiswa baru
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+                - nim
+                - programStudi
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                nim:
+                  type: string
+                programStudi:
+                  type: string
+      responses:
+        '201':
+          description: Pendaftaran berhasil
+        '400':
+          description: Input tidak valid / email sudah terdaftar
+
+  /auth/login:
+    post:
+      summary: Login pengguna (Mahasiswa / Admin)
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login sukses, mengembalikan token JWT
+
+  /auth/me:
+    get:
+      summary: Mengambil profil pengguna yang login beserta peringkatnya
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profil berhasil diambil
+
+  /submissions:
+    post:
+      summary: Membuat pengajuan sertifikat atau portofolio baru
+      tags:
+        - Submissions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - category
+                - subType
+                - title
+                - description
+                - evidence
+              properties:
+                category:
+                  type: string
+                  enum: [sertifikat, portofolio]
+                subType:
+                  type: string
+                  enum: [lokal, regional, nasional, internasional, personal, freelance, industri, juara_kompetisi]
+                title:
+                  type: string
+                description:
+                  type: string
+                evidence:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Pengajuan berhasil dibuat
+
+    get:
+      summary: Menampilkan semua pengajuan milik mahasiswa yang sedang login
+      tags:
+        - Submissions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar pengajuan berhasil diambil
+
+  /submissions/{id}:
+    get:
+      summary: Menampilkan detail pengajuan berdasarkan ID
+      tags:
+        - Submissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detail pengajuan berhasil diambil
+
+    put:
+      summary: Mengajukan ulang pengajuan yang ditolak (status rejected)
+      tags:
+        - Submissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                subType:
+                  type: string
+                evidence:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Pengajuan berhasil dikirim ulang
+
+    delete:
+      summary: Menghapus pengajuan (hanya jika berstatus pending/rejected)
+      tags:
+        - Submissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pengajuan berhasil dihapus
+
+  /leaderboard:
+    get:
+      summary: Menampilkan peringkat mahasiswa berdasarkan total poin
+      tags:
+        - Leaderboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: programStudi
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Leaderboard berhasil diambil
+
+  /rewards:
+    get:
+      summary: Menampilkan daftar reward yang aktif
+      tags:
+        - Rewards
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar reward berhasil diambil
+
+    post:
+      summary: Membuat reward baru (Khusus Admin)
+      tags:
+        - Rewards
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - pointRequired
+                - stock
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                pointRequired:
+                  type: integer
+                stock:
+                  type: integer
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Reward berhasil dibuat
+
+  /rewards/{id}:
+    put:
+      summary: Mengupdate data reward (Khusus Admin)
+      tags:
+        - Rewards
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                pointRequired:
+                  type: integer
+                stock:
+                  type: integer
+                  isActive:
+                    type: string
+                  image:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Reward berhasil diupdate
+
+  /rewards/{id}/claim:
+    post:
+      summary: Mengklaim reward (Khusus Mahasiswa)
+      tags:
+        - Rewards
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Klaim reward sukses dan poin didecrement
+
+  /rewards/history:
+    get:
+      summary: Menampilkan riwayat klaim reward milik mahasiswa
+      tags:
+        - Rewards
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Riwayat klaim berhasil diambil
+
+  /rewards/claims:
+    get:
+      summary: Menampilkan daftar semua klaim mahasiswa (Khusus Admin)
+      tags:
+        - Rewards
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar klaim berhasil diambil
+
+  /admin/submissions:
+    get:
+      summary: Menampilkan antrian verifikasi pengajuan (Khusus Admin)
+      tags:
+        - Admin Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        '200':
+          description: Daftar antrian berhasil diambil
+
+  /admin/submissions/{id}/approve:
+    post:
+      summary: Menyetujui pengajuan mahasiswa dan menambah poin (Khusus Admin)
+      tags:
+        - Admin Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pengajuan berhasil disetujui
+
+  /admin/submissions/{id}/reject:
+    post:
+      summary: Menolak pengajuan mahasiswa dan memberikan alasan (Khusus Admin)
+      tags:
+        - Admin Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Pengajuan berhasil ditolak
+
+  /admin/students:
+    get:
+      summary: Menampilkan daftar seluruh mahasiswa terdaftar (Khusus Admin)
+      tags:
+        - Admin Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: minPoints
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: maxPoints
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Daftar mahasiswa berhasil diambil
+
+  /admin/students/{id}:
+    get:
+      summary: Menampilkan detail profil, pengajuan, dan log poin mahasiswa (Khusus Admin)
+      tags:
+        - Admin Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detail mahasiswa berhasil diambil
+
+  /admin/dashboard:
+    get:
+      summary: Menampilkan data statistik dashboard (Khusus Admin)
+      tags:
+        - Admin Tasks
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistik dashboard berhasil diambil
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

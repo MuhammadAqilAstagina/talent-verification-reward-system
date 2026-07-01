@@ -1,0 +1,141 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl"]
+}
+
+enum Role {
+  admin
+  mahasiswa
+}
+
+enum SubmissionCategory {
+  sertifikat
+  portofolio
+}
+
+enum SubmissionSubType {
+  lokal
+  regional
+  nasional
+  internasional
+  personal
+  freelance
+  industri
+  juara_kompetisi
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+}
+
+enum TransactionType {
+  earn
+  redeem
+}
+
+enum ClaimStatus {
+  pending
+  processed
+  completed
+}
+
+model User {
+  id            String             @id @default(uuid())
+  name          String
+  email         String             @unique
+  passwordHash  String             @map("password_hash")
+  role          Role               @default(mahasiswa)
+  nim           String?            // khusus mahasiswa
+  programStudi  String?            @map("program_studi") // khusus mahasiswa
+  avatarUrl     String?            @map("avatar_url")
+  totalPoints   Int                @default(0) @map("total_points")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  
+  // Relations
+  submissions          Submission[]       @relation("UserSubmissions")
+  reviewedSubmissions  Submission[]       @relation("AdminReviews")
+  pointTransactions    PointTransaction[]
+  rewardClaims         RewardClaim[]
+  createdRewards       Reward[]           @relation("AdminCreatedRewards")
+
+  @@map("users")
+}
+
+model Submission {
+  id               String            @id @default(uuid())
+  userId           String            @map("user_id")
+  category         SubmissionCategory
+  subType          SubmissionSubType @map("sub_type")
+  title            String
+  description      String
+  evidenceFileUrl  String            @map("evidence_file_url")
+  pointValue       Int               @map("point_value")
+  status           SubmissionStatus  @default(pending)
+  rejectReason     String?           @map("reject_reason")
+  reviewedById     String?           @map("reviewed_by_id")
+  reviewedAt       DateTime?         @map("reviewed_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  user             User              @relation("UserSubmissions", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer         User?             @relation("AdminReviews", fields: [reviewedById], references: [id])
+  pointTransactions PointTransaction[]
+
+  @@map("submissions")
+}
+
+model PointTransaction {
+  id            String          @id @default(uuid())
+  userId        String          @map("user_id")
+  submissionId  String?         @map("submission_id")
+  type          TransactionType
+  amount        Int
+  description   String
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submission    Submission?     @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
+  @@map("point_transactions")
+}
+
+model Reward {
+  id            String        @id @default(uuid())
+  title         String
+  description   String
+  imageUrl      String?       @map("image_url")
+  pointRequired Int           @map("point_required")
+  stock         Int
+  isActive      Boolean       @default(true) @map("is_active")
+  createdById   String        @map("created_by_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  creator       User          @relation("AdminCreatedRewards", fields: [createdById], references: [id])
+  claims        RewardClaim[]
+
+  @@map("rewards")
+}
+
+model RewardClaim {
+  id         String      @id @default(uuid())
+  userId     String      @map("user_id")
+  rewardId   String      @map("reward_id")
+  status     ClaimStatus @default(completed) // untuk MVP langsung completed
+  claimedAt  DateTime    @default(now()) @map("claimed_at")
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward     Reward      @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@map("reward_claims")
+}
