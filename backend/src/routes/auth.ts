@@ -6,7 +6,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwttokenforauthdev123';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'];
 
 // REGISTER Route (Student only)
 router.post('/register', async (req, res) => {
