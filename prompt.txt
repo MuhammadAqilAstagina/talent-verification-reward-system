@@ -1,0 +1,223 @@
+buatkan issue.md berisi planning untuk membuat Website MVP "Talent Verification & Reward System"
+
+
+1. KONTEKS & TUJUAN PROJECT
+
+Buatkan website **MVP (Minimum Viable Product)** bernama **"Talent Verification & Reward System"** yang memungkinkan mahasiswa mengajukan skill, sertifikat, dan portofolio untuk diverifikasi oleh admin. Setiap pengajuan yang disetujui akan menghasilkan poin, yang masuk ke leaderboard dan bisa ditukar dengan reward.
+
+Tujuan bisnis: mendorong mahasiswa aktif mengumpulkan sertifikasi/portofolio dengan sistem gamifikasi poin & reward.
+
+---
+
+2. ALUR UTAMA (CORE FLOW)
+
+```
+Mahasiswa login
+  → Tambah data Skill / Sertifikat / Portofolio (upload bukti)
+  → Submit untuk verifikasi (status: PENDING)
+  → Admin login & review
+      → REJECT → status REJECTED, mahasiswa bisa lihat alasan & submit ulang
+      → APPROVE → status APPROVED, poin otomatis ditambahkan ke akun mahasiswa
+  → Poin terakumulasi → muncul di Leaderboard (ranking antar mahasiswa)
+  → Mahasiswa bisa klaim Reward sesuai poin yang dimiliki (jika poin cukup)
+  → Admin kelola reward (posting reward baru, atur poin kebutuhan, atur stok)
+```
+
+---
+
+3. ATURAN POIN (BUSINESS LOGIC)
+
+Poin dihitung **per item pengajuan yang di-APPROVE**, dan **akumulatif** (mahasiswa dengan banyak aktivitas mendapat total poin lebih besar, bukan flat/rata-rata).
+
+3.1 Kategori Sertifikat
+| Jenis Aktivitas | Poin |
+|---|---|
+| Sertifikat Lokal | 1 |
+| Sertifikat Regional | 3 |
+| Sertifikat Nasional | 5 |
+| Sertifikat Internasional | 10 |
+
+3.2 Kategori Portofolio
+| Jenis Aktivitas | Poin |
+|---|---|
+| Portofolio Personal | 2 |
+| Portofolio Freelance | 5 |
+| Portofolio Industri | 8 |
+| Juara Kompetisi | 10 |
+
+3.3 Aturan Perhitungan
+- `total_point_mahasiswa = SUM(point)` dari semua submission dengan status `APPROVED`.
+- Setiap kali admin approve satu submission → trigger penambahan poin ke tabel akumulasi (jangan hitung ulang dari awal setiap saat, cukup increment untuk efisiensi, tapi tetap simpan histori transaksi poin agar bisa diaudit).
+- Saat klaim reward, poin mahasiswa **dikurangi** sejumlah `point_required` reward tersebut (buat tabel `point_transactions` dengan tipe `EARN` dan `REDEEM` agar histori jelas).
+- Reward tidak bisa diklaim jika `total_point_mahasiswa < point_required` atau `stok reward == 0`.
+
+---
+
+4. FITUR TEKNIKAL (NON-FUNGSIONAL)
+
+1. **Responsive Layout** — mobile-first, harus tampil baik di HP, tablet, dan desktop.
+2. **Dockerized** — sediakan `Dockerfile` (frontend & backend) + `docker-compose.yml` yang menjalankan: frontend, backend, database, dan (opsional) storage untuk file upload. Harus bisa dijalankan cukup dengan `docker-compose up`.
+3. **Deploy Online** — siapkan environment variable (`.env.example`) agar mudah dideploy ke platform seperti Railway/Render/VPS. Sertakan instruksi deploy di README.
+4. **Struktur folder rapi** — pisahkan `frontend/`, `backend/`, dokumentasi API (`docs/` atau Swagger/OpenAPI).
+5. **Autentikasi berbasis role** — JWT atau session-based, dengan middleware pembeda role `admin` dan `mahasiswa`.
+6. **Upload file bukti** — gunakan local storage untuk MVP (folder `/uploads`), validasi tipe file (pdf/jpg/png) dan ukuran maksimal (misal 5MB).
+
+---
+
+5. TECH STACK YANG DISARANKAN (bisa disesuaikan)
+
+- **Frontend**: React (Vite) + TailwindCSS
+- **Backend**: Node.js (Express) atau Laravel/Django jika tim lebih familiar itu — pilih salah satu, jangan campur
+- **Database**: PostgreSQL atau MySQL
+- **ORM**: Prisma / Sequelize / Eloquent (sesuai stack)
+- **Auth**: JWT (access token) 
+- **File storage**: local disk volume (Docker volume) untuk MVP
+- **Containerization**: Docker + docker-compose
+
+> Catatan untuk AI/developer: pilih stack yang paling cepat diimplementasikan dan stabil untuk tim junior. Jika ragu, gunakan **Node.js + Express + PostgreSQL + Prisma + React**.
+
+---
+
+6. DATA MODEL (ERD RINGKAS)
+
+### Table: `users`
+- id, name, email, password_hash, role (`admin` | `mahasiswa`), nim (khusus mahasiswa), program_studi, avatar_url, created_at
+
+### Table: `submissions`
+- id, user_id (FK), category (`sertifikat` | `portofolio`)
+- sub_type (enum: `lokal`, `regional`, `nasional`, `internasional`, `personal`, `freelance`, `industri`, `juara_kompetisi`)
+- title, description, evidence_file_url
+- point_value (diisi otomatis sesuai tabel poin saat submit)
+- status (`pending` | `approved` | `rejected`)
+- reject_reason (nullable)
+- reviewed_by (FK ke users/admin, nullable), reviewed_at (nullable)
+- created_at, updated_at
+
+### Table: `point_transactions`
+- id, user_id (FK), submission_id (FK, nullable jika transaksi redeem)
+- type (`earn` | `redeem`)
+- amount (bisa positif/negatif)
+- description
+- created_at
+
+### Table: `rewards`
+- id, title, description, image_url, point_required, stock, is_active
+- created_by (admin), created_at
+
+### Table: `reward_claims`
+- id, user_id (FK), reward_id (FK)
+- status (`pending` | `processed` | `completed`) — opsional untuk MVP bisa langsung `completed`
+- claimed_at
+
+---
+
+7. FITUR PER ROLE
+
+7.1 Role: ADMIN
+
+1. **Autentikasi**
+   - Login (email + password)
+   - Logout
+2. **Dashboard**
+   - Total jumlah mahasiswa terdaftar
+   - Total submission (breakdown: pending / approved / rejected)
+   - Total skill/sertifikat vs portofolio yang sudah approved
+   - Grafik sederhana (misal jumlah submission per bulan) — opsional untuk MVP, boleh dilewati jika waktu terbatas
+3. **Data Mahasiswa**
+   - List semua mahasiswa dengan kolom: nama, NIM, total poin, jumlah submission approved
+   - Search & filter berdasarkan **nama**, **skill/kategori tertentu**, dan **rentang poin**
+   - Detail mahasiswa: lihat semua submission & histori poin milik mahasiswa tsb
+4. **Verifikasi Skill/Portofolio**
+   - List submission dengan status `pending`
+   - Detail submission (lihat file bukti, deskripsi)
+   - Tombol **Approve** (otomatis tambah poin sesuai `sub_type`) atau **Reject** (wajib isi alasan)
+5. **Reward Management**
+   - CRUD reward: judul, deskripsi, gambar, poin dibutuhkan, stok
+   - Aktifkan/nonaktifkan reward
+   - Lihat daftar klaim reward oleh mahasiswa
+
+7.2 Role: MAHASISWA
+
+1. **Autentikasi**
+   - Register (nama, email, NIM, password) & Login/Logout
+2. **Talent Profile**
+   - Lihat & edit profil (nama, foto, program studi, dsb)
+   - Ringkasan: total poin, jumlah sertifikat approved, jumlah portofolio approved, ranking saat ini
+3. **Skill/Sertifikat Management**
+   - Tambah pengajuan sertifikat baru: pilih jenis (lokal/regional/nasional/internasional), judul, deskripsi, upload file bukti
+   - Lihat status semua pengajuan (pending/approved/rejected) beserta alasan reject jika ada
+   - Submit ulang jika direjeect
+4. **Portfolio Management**
+   - Sama seperti di atas tapi untuk kategori portofolio (personal/freelance/industri/juara kompetisi)
+5. **Leaderboard**
+   - Ranking semua mahasiswa berdasarkan total poin (desc)
+   - Highlight posisi mahasiswa yang sedang login
+   - Filter opsional (misal per program studi)
+6. **Reward Catalog**
+   - List semua reward aktif beserta poin yang dibutuhkan & stok tersisa
+   - Tombol "Klaim" — disabled jika poin tidak cukup atau stok habis
+   - Riwayat klaim reward milik sendiri
+
+---
+
+8. HALAMAN (PAGES) YANG PERLU DIBUAT
+
+**Publik/Auth:**
+- `/login`
+- `/register` (mahasiswa)
+
+**Mahasiswa:**
+- `/dashboard` — ringkasan profil & poin
+- `/profile`
+- `/skills` — list + form tambah sertifikat
+- `/portfolios` — list + form tambah portofolio
+- `/leaderboard`
+- `/rewards` — katalog reward
+- `/rewards/history` — riwayat klaim
+
+**Admin:**
+- `/admin/dashboard`
+- `/admin/students` — data mahasiswa + search/filter
+- `/admin/students/:id` — detail mahasiswa
+- `/admin/verifications` — antrian verifikasi (pending)
+- `/admin/verifications/:id` — detail + approve/reject
+- `/admin/rewards` — kelola reward
+- `/admin/reward-claims` — daftar klaim reward mahasiswa
+
+---
+
+9. DELIVERABLES YANG DIHARAPKAN
+
+1. Source code frontend & backend terpisah rapi
+2. `docker-compose.yml` + `Dockerfile` untuk masing-masing service, siap `docker-compose up --build`
+3. Database migration/seed script (termasuk 1 akun admin default & beberapa dummy reward)
+4. README.md berisi:
+   - Cara menjalankan lokal (dengan & tanpa Docker)
+   - Cara deploy online (step-by-step)
+   - Daftar environment variable
+   - Kredensial default admin untuk testing
+5. Dokumentasi endpoint API (boleh Postman collection atau Swagger)
+
+---
+
+10. PRIORITAS IMPLEMENTASI (URUTAN KERJA DISARANKAN)
+
+1. Setup project + Docker + database schema/migration
+2. Autentikasi & role-based middleware (admin vs mahasiswa)
+3. CRUD submission (skill/sertifikat/portofolio) + upload file
+4. Alur verifikasi admin (approve/reject) + logic poin otomatis
+5. Leaderboard (query & sort berdasarkan total poin)
+6. Reward management (admin) + reward catalog & klaim (mahasiswa)
+7. Dashboard admin (statistik ringkas)
+8. Polish UI responsive + testing alur end-to-end
+9. Deploy online
+
+---
+
+11. CATATAN UNTUK AI/DEVELOPER JUNIOR
+
+- Fokus dulu ke **alur inti yang berfungsi end-to-end** (submit → verifikasi → poin → leaderboard → klaim reward) sebelum mempercantik UI.
+- Gunakan enum/constant untuk `sub_type` dan poin-nya di satu file konfigurasi (misal `pointRules.js`) agar mudah diubah tanpa mengubah banyak file.
+- Semua perubahan poin **wajib** tercatat di `point_transactions` — jangan hanya update angka di tabel `users`, supaya ada jejak audit.
+- Validasi di backend, jangan andalkan validasi frontend saja (terutama untuk perhitungan poin & syarat klaim reward).
+- Tulis kode dengan komentar singkat di bagian logic poin & verifikasi karena ini adalah bagian bisnis paling kritis di aplikasi ini.
