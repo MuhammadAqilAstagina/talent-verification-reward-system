@@ -11,6 +11,10 @@ import leaderboardRouter from './routes/leaderboard';
 
 dotenv.config();
 
+console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
+console.log('[STARTUP] PORT:', process.env.PORT);
+console.log('[STARTUP] DATABASE_URL host:', (process.env.DATABASE_URL || '(not set)').replace(/\/\/[^@]*@/, '//***@'));
+
 const app = express();
 const port = process.env.PORT || 4000;
 
